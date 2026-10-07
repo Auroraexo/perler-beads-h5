@@ -8,7 +8,8 @@ Phase-1 演示后端:单进程同时提供静态 React 页 + 处理 API。
 上传图片以 base64 JSON 提交(避免 multipart 解析);返回 PDF + 像素网格 + BOM。
 仅用 Python 标准库,无需安装 Flask/FastAPI。
 """
-import base64, io, json, os, tempfile
+import base64, io, json, os, tempfile, threading, time, uuid
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
@@ -50,6 +51,44 @@ def process_image(image_b64, size, bead):
     return pdf_b64, grid_b64, bom
 
 
+
+# Phase-2: 异步队列(标准库线程池,可无缝替换为 RabbitMQ 消费者)
+JOB_LOCK = threading.Lock()
+JOBS = {}
+WORKER = ThreadPoolExecutor(max_workers=4, thread_name_prefix='bead-worker')
+
+
+def _run_job(job_id, image_b64, size, bead):
+    try:
+        JOBS[job_id]['status'] = 'running'
+        pdf_b64, grid_b64, bom = process_image(image_b64, size, bead)
+        JOBS[job_id].update({
+            'status': 'done', 'progress': 100,
+            'pdf_b64': pdf_b64, 'grid_b64': grid_b64,
+            'bom': [{'id': x['id'], 'name': x['name'],
+                     'hex': x['hex'], 'count': c} for x, c in bom],
+        })
+    except Exception as e:
+        JOBS[job_id]['status'] = 'error'
+        JOBS[job_id]['error'] = str(e)
+
+
+def submit_job(image_b64, size, bead):
+    job_id = uuid.uuid4().hex[:12]
+    rec = {'job_id': job_id, 'status': 'queued', 'progress': 0,
+           'size': size, 'bead': bead, 'created': time.time()}
+    with JOB_LOCK:
+        JOBS[job_id] = rec
+    WORKER.submit(_run_job, job_id, image_b64, size, bead)
+    return job_id
+
+
+def get_job(job_id):
+    with JOB_LOCK:
+        rec = JOBS.get(job_id)
+        return dict(rec) if rec else None
+
+
 class Handler(BaseHTTPRequestHandler):
     def _send(self, code, ctype, body):
         if isinstance(body, str):
@@ -76,14 +115,23 @@ class Handler(BaseHTTPRequestHandler):
             }
             self._send(200, 'application/json',
                        json.dumps(cfg, ensure_ascii=False))
+        elif path.startswith('/api/job/'):
+            job = get_job(path.rsplit('/', 1)[1])
+            if job is None:
+                self._send(404, 'application/json',
+                           json.dumps({'error': 'no such job'},
+                                    ensure_ascii=False))
+            else:
+                self._send(200, 'application/json',
+                           json.dumps(job, ensure_ascii=False))
         else:
             self._send(404, 'text/plain', b'not found')
 
     def do_POST(self):
         path = urlparse(self.path).path
+        length = int(self.headers.get('Content-Length', 0))
+        raw = self.rfile.read(length)
         if path == '/api/process':
-            length = int(self.headers.get('Content-Length', 0))
-            raw = self.rfile.read(length)
             try:
                 req = json.loads(raw.decode('utf-8'))
                 img = req['image_b64']
@@ -101,6 +149,25 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 self._send(400, 'application/json',
                            json.dumps({'error': str(e)}, ensure_ascii=False))
+        elif path == '/api/submit':
+            req = json.loads(raw.decode('utf-8'))
+            job_id = submit_job(req['image_b64'],
+                                int(req.get('size', 32)),
+                                req.get('bead', 'circle'))
+            self._send(202, 'application/json',
+                       json.dumps({'job_id': job_id,
+                                   'status': 'queued'},
+                                ensure_ascii=False))
+        elif path == '/api/batch':
+            req = json.loads(raw.decode('utf-8'))
+            items = req.get('images', [])
+            ids = [submit_job(it['image_b64'],
+                               int(it.get('size', 32)),
+                               it.get('bead', 'circle'))
+                   for it in items]
+            self._send(202, 'application/json',
+                       json.dumps({'job_ids': ids},
+                                ensure_ascii=False))
         else:
             self._send(404, 'application/json',
                        json.dumps({'error': 'not found'}, ensure_ascii=False))

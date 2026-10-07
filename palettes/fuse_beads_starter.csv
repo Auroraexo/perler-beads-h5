@@ -1,0 +1,51 @@
+﻿id,name,hex
+01,Black,000000
+02,White,FFFFFF
+03,Off-White,F5F5DC
+04,Charcoal,3B3B3B
+05,Dark Gray,6E6E6E
+06,Gray,808080
+07,Light Gray,C4C4C4
+08,Red,D3111A
+09,Dark Red,8B0000
+10,Maroon,800020
+11,Pink,FF85C8
+12,Hot Pink,FF4FA3
+13,Bubblegum,FFB6C1
+14,Coral,FF7F50
+15,Orange,F96300
+16,Dark Orange,A94913
+17,Yellow,FFCB29
+18,Lemon,FFF200
+19,Gold,C5A023
+20,Olive,7A7A1F
+21,Green,2FA34F
+22,Dark Green,1E6B34
+23,Lime,8DC63F
+24,Mint,BFE6C9
+25,Teal,2E8B8B
+26,Aqua,3FC7C7
+27,Sky,7FC7F0
+28,Royal,3A6DF0
+29,Navy,1B2A6B
+30,Blue,2E5CB8
+31,Purple,6B3FA0
+32,Violet,7F4FC2
+33,Lavender,D8B4E0
+34,Magenta,C22E6A
+35,Brown,7A4A23
+36,Tan,C69C5F
+37,Beige,E8D5B0
+38,Chocolate,7B3F00
+39,Rust,9C4A1E
+40,Cream,FFFBE6
+41,Baby Pink,F7C6D0
+42,Baby Blue,A9D6E9
+43,Slate,5A6E75
+44,Silver,C7C7C7
+45,Pearl White,FDFBF7
+46,Charcoal Blue,33415C
+47,Forest,228B22
+48,Emerald,1FA18B
+49,Turquoise,39C4C4
+50,Plum,5E3A5E
